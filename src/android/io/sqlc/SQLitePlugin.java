@@ -15,6 +15,7 @@ import java.io.File;
 import java.lang.IllegalArgumentException;
 import java.lang.Number;
 
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -176,25 +177,47 @@ public class SQLitePlugin extends CordovaPlugin {
      */
     @Override
     public void onDestroy() {
-        while (!dbrmap.isEmpty()) {
-            String dbname = dbrmap.keySet().iterator().next();
 
-            this.closeDatabaseNow(dbname);
-
-            DBRunner r = dbrmap.get(dbname);
-            try {
-                // stop the db runner thread:
-                r.q.put(new DBQuery());
-            } catch(Exception e) {
-                Log.e(SQLitePlugin.class.getSimpleName(), "couldn't stop db thread", e);
+        String webViewUrl = this.webView.getUrl();
+        boolean isModule = !webViewUrl.contains("android_asset/www/index.html");
+        if (isModule) {
+            Iterator<String> dbIterator = dbrmap.keySet().iterator();
+            while(dbIterator.hasNext()) {
+                String dbname = dbIterator.next();
+                if (!dbname.startsWith("ituni_")) {
+                    // do not close core db when module close
+                    this.closeDatabaseNow(dbname);
+                    this.stopDbThread(dbname);
+                }
             }
-            dbrmap.remove(dbname);
+        }
+        else {
+            while (!dbrmap.isEmpty()) {
+                String dbname = dbrmap.keySet().iterator().next();
+
+                this.closeDatabaseNow(dbname);
+
+                this.stopDbThread(dbname);
+            }
         }
     }
 
     // --------------------------------------------------------------------------
     // LOCAL METHODS
     // --------------------------------------------------------------------------
+
+    private void stopDbThread(String dbname){
+        this.closeDatabaseNow(dbname);
+
+        DBRunner r = dbrmap.get(dbname);
+        try {
+            // stop the db runner thread:
+            r.q.put(new DBQuery());
+        } catch(Exception e) {
+            Log.e(SQLitePlugin.class.getSimpleName(), "couldn't stop db thread", e);
+        }
+        dbrmap.remove(dbname);
+    }
 
     private void startDatabase(String dbname, JSONObject options, CallbackContext cbc) {
         DBRunner r = dbrmap.get(dbname);

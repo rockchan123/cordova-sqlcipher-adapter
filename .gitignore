@@ -6,3 +6,4 @@ node_modules
 spec/myplugin
 spec/plugins
 spec/platforms
+.idea
